@@ -1,6 +1,6 @@
 # 第一阶段：后端 Agent 核心执行计划 (Execution Plan)
 
-本执行计划根据 [phase1_backend.md](file:///Users/nam/Documents/agent/deep-research/docs/design-docs/phase1_backend.md) 拆分，将第一阶段的开发划分为 **8个独立、短小、便于验证的执行步骤**。
+本执行计划根据 [phase1_backend.md](../design-docs/phase1_backend.md) 拆分，将第一阶段的开发划分为 **8个独立、短小、便于验证的执行步骤**。
 
 ---
 
@@ -23,9 +23,9 @@ graph TD
 ## 步骤 1: 环境与配置初始化
 * **目标**: 搭建 Python 开发环境，配置依赖，确保 API Key 能正常读取。
 * **修改/新建文件**:
-  * [NEW] [backend/requirements.txt](file:///Users/nam/Documents/agent/deep-research/backend/requirements.txt)
-  * [NEW] [backend/app/config.py](file:///Users/nam/Documents/agent/deep-research/backend/app/config.py)
-  * [NEW] [backend/.env](file:///Users/nam/Documents/agent/deep-research/backend/.env) (开发环境密钥配置)
+  * [NEW] [backend/requirements.txt](../../backend/requirements.txt)
+  * [NEW] [backend/app/config.py](../../backend/app/config.py)
+  * [NEW] [backend/.env](../../backend/.env) (开发环境密钥配置)
 * **执行步骤**:
   1. 创建 `backend` 虚拟环境并激活。
   2. 编写 `requirements.txt`，包含 `fastapi`, `uvicorn`, `httpx`, `zhipuai`, `tavily-python`, `PyYAML`, `pydantic`, `pytest`。
@@ -42,8 +42,8 @@ graph TD
 ## 步骤 2: Prompt 集中管理器
 * **目标**: 实现集中管理 Prompt，并提供动态插值格式化渲染功能。
 * **修改/新建文件**:
-  * [NEW] [backend/app/prompts/prompts.yaml](file:///Users/nam/Documents/agent/deep-research/backend/app/prompts/prompts.yaml)
-  * [NEW] [backend/app/prompts/manager.py](file:///Users/nam/Documents/agent/deep-research/backend/app/prompts/manager.py)
+  * [NEW] [backend/app/prompts/prompts.yaml](../../backend/app/prompts/prompts.yaml)
+  * [NEW] [backend/app/prompts/manager.py](../../backend/app/prompts/manager.py)
 * **执行步骤**:
   1. 编写 `prompts.yaml`，录入各个 Agent (Planner, Extractor, Synthesizer) 的 system/user prompt 模版。
   2. 实现 `manager.py` 中的 `PromptManager` 类，包含 `load()` 加载 yaml，以及 `get_prompt(agent, type, **kwargs)` 返回格式化后的字符串。
@@ -61,9 +61,9 @@ graph TD
 ## 步骤 3: 网页与学术搜索模块
 * **目标**: 封装 Tavily 网页搜索和 arXiv / Semantic Scholar 学术检索，完成 Search Router 编写。
 * **修改/新建文件**:
-  * [NEW] [backend/app/search/tavily_client.py](file:///Users/nam/Documents/agent/deep-research/backend/app/search/tavily_client.py)
-  * [NEW] [backend/app/search/academic_client.py](file:///Users/nam/Documents/agent/deep-research/backend/app/search/academic_client.py)
-  * [NEW] [backend/app/search/router.py](file:///Users/nam/Documents/agent/deep-research/backend/app/search/router.py)
+  * [NEW] [backend/app/search/tavily_client.py](../../backend/app/search/tavily_client.py)
+  * [NEW] [backend/app/search/academic_client.py](../../backend/app/search/academic_client.py)
+  * [NEW] [backend/app/search/router.py](../../backend/app/search/router.py)
 * **执行步骤**:
   1. 封装 Tavily API 异步客户端，获取包含 title, url, content 的结果列表。
   2. 封装 arXiv 学术搜索，返回论文的摘要和 URL。
@@ -82,8 +82,8 @@ graph TD
 ## 步骤 4: Scraper 与 Extraper 事实提取
 * **目标**: 实现高价值网页的内容异步抓取与正文清洗，结合 GLM-5.2 提取结构化事实事实。
 * **修改/新建文件**:
-  * [NEW] [backend/app/agents/scraper.py](file:///Users/nam/Documents/agent/deep-research/backend/app/agents/scraper.py)
-  * [NEW] [backend/app/agents/extractor.py](file:///Users/nam/Documents/agent/deep-research/backend/app/agents/extractor.py)
+  * [NEW] [backend/app/agents/scraper.py](../../backend/app/agents/scraper.py)
+  * [NEW] [backend/app/agents/extractor.py](../../backend/app/agents/extractor.py)
 * **执行步骤**:
   1. 在 `scraper.py` 中编写正文提取逻辑：优先使用 Jina Reader API `https://r.jina.ai/{url}`，备用方案使用 `httpx` + `BeautifulSoup` 清洗。
   2. 在 `extractor.py` 中，调用 GLM-5.2 解析文本，根据 `prompts.yaml` 提取事实笔记（包含 `fact` 和 `evidence`）。
@@ -99,8 +99,8 @@ graph TD
 ## 5 步骤 5: State 模型与装饰器追踪
 * **目标**: 编写 Pydantic 数据模型，实现装饰器捕获工具调用详情，并追加至全局 State。
 * **修改/新建文件**:
-  * [NEW] [backend/app/core/state.py](file:///Users/nam/Documents/agent/deep-research/backend/app/core/state.py)
-  * [NEW] [backend/app/core/tracker.py](file:///Users/nam/Documents/agent/deep-research/backend/app/core/tracker.py) (工具和 LLM 调用的追踪装饰器)
+  * [NEW] [backend/app/core/state.py](../../backend/app/core/state.py)
+  * [NEW] [backend/app/core/tracker.py](../../backend/app/core/tracker.py) (工具和 LLM 调用的追踪装饰器)
 * **执行步骤**:
   1. 编写 `state.py`，声明 `ToolCallRecord`, `LLMIOLog`, `FactNode`, `ResearchState` 模型。
   2. 编写 `track_tool_call(tool_name)` 异步装饰器，自动计算运行时长、捕获参数与返回值，自动记录到 `state.tool_calls`。
@@ -119,8 +119,8 @@ graph TD
 ## 步骤 6: Planner 与 Synthesizer 智能体
 * **目标**: 实现规划智能体（生成多维子方向）与合成智能体（根据提取的事实集，按章节生成最终的报告）。
 * **修改/新建文件**:
-  * [NEW] [backend/app/agents/planner.py](file:///Users/nam/Documents/agent/deep-research/backend/app/agents/planner.py)
-  * [NEW] [backend/app/agents/synthesizer.py](file:///Users/nam/Documents/agent/deep-research/backend/app/agents/synthesizer.py)
+  * [NEW] [backend/app/agents/planner.py](../../backend/app/agents/planner.py)
+  * [NEW] [backend/app/agents/synthesizer.py](../../backend/app/agents/synthesizer.py)
 * **执行步骤**:
   1. 在 `planner.py` 中通过 GLM-5.2 解析输入课题，生成大纲结构。
   2. 编写启发式深化接口 `refine_and_expand()`。
@@ -138,7 +138,7 @@ graph TD
 ## 步骤 7: 异步事件循环核心驱动
 * **目标**: 编写 `loop.py`，调度 Planner、Searcher、Scraper、Extractor、Synthesizer 串行与并行执行，完成深度和广度递归控制。
 * **修改/新建文件**:
-  * [NEW] [backend/app/core/loop.py](file:///Users/nam/Documents/agent/deep-research/backend/app/core/loop.py)
+  * [NEW] [backend/app/core/loop.py](../../backend/app/core/loop.py)
 * **执行步骤**:
   1. 编写核心控制类 `AsyncResearchLoop`。
   2. 实现基于 `asyncio.gather` 的子方向并发检索与事实提取。
@@ -156,7 +156,7 @@ graph TD
 ## 步骤 8: CLI 沙盒与全链路集成测试
 * **目标**: 整合所有核心模块，编写控制台沙盒测试脚本，完整走通从“输入课题”到“生成 Markdown 报告与日志 JSON”的全流程。
 * **修改/新建文件**:
-  * [NEW] [backend/test_cli.py](file:///Users/nam/Documents/agent/deep-research/backend/test_cli.py)
+  * [NEW] [backend/test_cli.py](../../backend/test_cli.py)
 * **执行步骤**:
   1. 编写命令行交互式 CLI。
   2. 执行完整的深度研究流程（设置为 depth=2, breadth=2）。
