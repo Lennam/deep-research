@@ -1,5 +1,6 @@
 import asyncio
-from typing import List, Dict, Any
+import time
+from typing import List, Dict, Any, Optional, Callable
 from app.core.state import ResearchState, FactNode
 from app.agents.planner import PlannerAgent
 from app.agents.scraper import ScraperAgent
@@ -13,10 +14,12 @@ class AsyncResearchLoop:
         state: ResearchState, 
         glm_key: str = None, 
         tavily_key: str = None,
-        search_mode: str = "auto"
+        search_mode: str = "auto",
+        on_event: Optional[Callable[[str, dict], None]] = None
     ):
         self.state = state
         self.search_mode = search_mode
+        self.on_event = on_event
         
         # Instantiate agents with shared state for tracking decorators
         from app.core.llm import GLMClient
@@ -35,6 +38,16 @@ class AsyncResearchLoop:
         """Logs a status message to the state logs list."""
         self.state.logs.append(message)
         print(f"[Agent Loop] {message}")
+        if getattr(self, "on_event", None):
+            try:
+                self.on_event("log", {"message": message, "timestamp": time.time()})
+                self.on_event("state_update", {
+                    "current_depth": self.state.current_depth,
+                    "sources_count": len(self.state.sources),
+                    "facts_count": len(self.state.extracted_facts)
+                })
+            except Exception as e:
+                print(f"[Agent Loop] Event publishing failed: {e}")
 
     async def run(self) -> str:
         """

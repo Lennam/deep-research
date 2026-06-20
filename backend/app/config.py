@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     
     DEFAULT_MAX_DEPTH: int = 3
     DEFAULT_MAX_BREADTH: int = 3
+    
+    SQLITE_DB_PATH: str = str(BASE_DIR / "app.db")
 
     model_config = SettingsConfigDict(
         env_file=BASE_DIR / ".env",
