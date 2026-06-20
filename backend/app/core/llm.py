@@ -1,16 +1,19 @@
 import asyncio
 import time
 from typing import Any
-from zhipuai import ZhipuAI
+from openai import OpenAI
 from app.config import settings
 
-class GLMClient:
-    def __init__(self, api_key: str = None, model: str = None):
-        self.api_key = api_key or settings.ZHIPUAI_API_KEY
-        self.model = model or settings.GLM_MODEL
+class LLMClient:
+    def __init__(self, api_key: str = None, base_url: str = None, model: str = None):
+        # Determine API key, base URL, and model, resolving fallbacks
+        self.api_key = api_key or settings.OPENAI_API_KEY
+        self.base_url = base_url or settings.OPENAI_BASE_URL
+        self.model = model or settings.OPENAI_MODEL
+
         self.client = None
-        if self.api_key and self.api_key != "your_zhipu_api_key_here":
-            self.client = ZhipuAI(api_key=self.api_key)
+        if self.api_key and self.api_key != "your_openai_api_key_here":
+            self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
 
     async def chat_completion(
         self, 
@@ -22,10 +25,10 @@ class GLMClient:
         prompt_name: str = "prompt"
     ) -> str:
         """
-        Calls Zhipu AI GLM model asynchronously and logs the inputs/outputs to the provided state.
+        Calls the LLM using OpenAI specification asynchronously and logs the inputs/outputs to the provided state.
         """
         if not self.client:
-            raise ValueError("Zhipu AI API Key is not configured. Please set ZHIPUAI_API_KEY in .env.")
+            raise ValueError("OpenAI/Zhipu API Key is not configured. Please set OPENAI_API_KEY in .env.")
 
         messages = [
             {"role": "system", "content": system_prompt},
@@ -43,7 +46,7 @@ class GLMClient:
                 params["response_format"] = {"type": "json_object"}
             
             response = self.client.chat.completions.create(**params)
-            content = response.choices[0].message.content
+            content = response.choices[0].message.content or ""
             
             prompt_tokens = 0
             completion_tokens = 0
@@ -70,5 +73,6 @@ class GLMClient:
 
         return content
 
-# Singleton instance
-glm_client = GLMClient()
+# Backwards compatibility aliases
+GLMClient = LLMClient
+glm_client = LLMClient()

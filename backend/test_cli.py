@@ -26,8 +26,7 @@ async def main():
     print("="*50 + "\n")
 
     # Verify environment keys are present
-    if not settings.ZHIPUAI_API_KEY or settings.ZHIPUAI_API_KEY == "your_zhipu_api_key_here":
-        print("[Warning] ZHIPUAI_API_KEY is not set. Real LLM calls will fail.")
+    has_openai = settings.OPENAI_API_KEY and settings.OPENAI_API_KEY != "your_openai_api_key_here"
     if not settings.TAVILY_API_KEY or settings.TAVILY_API_KEY == "your_tavily_api_key_here":
         print("[Warning] TAVILY_API_KEY is not set. Real Web searches will fail.")
 

@@ -29,12 +29,12 @@ graph TD
 * **执行步骤**:
   1. 创建 `backend` 虚拟环境并激活。
   2. 编写 `requirements.txt`，包含 `fastapi`, `uvicorn`, `httpx`, `zhipuai`, `tavily-python`, `PyYAML`, `pydantic`, `pytest`。
-  3. 编写 `config.py`，使用 Pydantic BaseSettings 载入 `ZHIPUAI_API_KEY` 和 `TAVILY_API_KEY`。
+  3. 编写 `config.py`，使用 Pydantic BaseSettings 载入 `OPENAI_API_KEY` 和 `TAVILY_API_KEY`。
 * **验证方式**:
   * 创建一个临时的测试脚本 `test_env.py`，导入所有依赖库，并打印配置中的 API 密钥掩码。
   * **验证指令**:
     ```bash
-    python -c "from app.config import settings; print('ZHIPU:', settings.ZHIPUAI_API_KEY[:4] + '***' if settings.ZHIPUAI_API_KEY else 'Missing')"
+    python -c "from app.config import settings; print('OPENAI:', settings.OPENAI_API_KEY[:4] + '***' if settings.OPENAI_API_KEY else 'Missing')"
     ```
 
 ---

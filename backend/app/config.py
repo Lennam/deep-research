@@ -6,9 +6,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 class Settings(BaseSettings):
-    ZHIPUAI_API_KEY: str = ""
+    OPENAI_API_KEY: str = ""
+    OPENAI_BASE_URL: str = "https://api.openai.com/v1"
+    OPENAI_MODEL: str = "gpt-4o-mini"
+    
     TAVILY_API_KEY: str = ""
-    GLM_MODEL: str = "glm-4-flash" # default model, can be overridden by GLM_MODEL env var
     
     DEFAULT_MAX_DEPTH: int = 3
     DEFAULT_MAX_BREADTH: int = 3
