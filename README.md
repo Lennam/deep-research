@@ -100,7 +100,7 @@ graph TD
     VC -->|1. POST /api/research/start| API
     API -->|2. 管理后台任务| TM
     TM -->|3. 启动协程循环| Loop
-    useSSE -->|4. GET /api/research/stream/{id}| API
+    useSSE -->|"4. GET /api/research/stream/{id}"| API
     TM -.->|5. 实时推送事件帧| useSSE
 
     Loop -->|读写| State
