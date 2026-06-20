@@ -5,7 +5,7 @@
       <h3>知识探求脑图</h3>
     </div>
     <div class="tree-body">
-      <svg v-if="treeData" class="tree-svg" viewBox="0 0 600 360" width="100%" height="100%">
+      <svg v-if="treeData" class="tree-svg" :viewBox="`0 0 600 ${svgHeight}`" width="100%" :height="svgHeight">
         <!-- Lines -->
         <g class="tree-links">
           <line
@@ -93,11 +93,21 @@ const treeData = computed<TreeNode | null>(() => {
   let currentSubtopic: TreeNode | null = null;
 
   for (const log of props.logs) {
-    // 1. Detect sub-topics
-    if (log.includes('开始研究子课题:') || log.includes('开始研究子方向:')) {
-      const match = log.match(/子课题:\s*(.+)$/) || log.match(/子方向:\s*(.+)$/);
+    // 1. Detect sub-topics (match legacy format and new "正在研究方向" format)
+    if (log.includes('开始研究子课题:') || log.includes('开始研究子方向:') || log.includes('正在研究方向')) {
+      const match = log.match(/子课题:\s*(.+)$/) || log.match(/子方向:\s*(.+)$/) || log.match(/正在研究方向\s*\[([^\]]+)\]/);
       if (match) {
         const title = match[1].trim();
+        let queries: string[] = [];
+        
+        // Parse planned queries if present in the log line
+        // e.g. "正在研究方向 [量子计算]，拟执行查询: ['q1', 'q2']"
+        const queriesMatch = log.match(/拟执行查询:\s*\[(.*)\]/);
+        if (queriesMatch) {
+          const rawQueries = queriesMatch[1];
+          queries = rawQueries.split(',').map(q => q.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean);
+        }
+
         if (!subtopicMap.has(title)) {
           const subNode: TreeNode = {
             id: `sub-${subtopicMap.size}`,
@@ -106,6 +116,18 @@ const treeData = computed<TreeNode | null>(() => {
             status: 'completed',
             children: []
           };
+          
+          // Add pre-planned queries in pending status
+          queries.forEach((query, qIdx) => {
+            subNode.children.push({
+              id: `q-${subNode.id}-${qIdx}`,
+              label: query,
+              type: 'query',
+              status: 'pending',
+              children: []
+            });
+          });
+
           subtopicMap.set(title, subNode);
           rootNode.children.push(subNode);
         }
@@ -113,27 +135,51 @@ const treeData = computed<TreeNode | null>(() => {
       }
     }
     
-    // 2. Detect queries
+    // 2. Detect active queries
     if (log.includes('正在检索:')) {
-      const match = log.match(/正在检索:\s*'([^']+)'/);
-      if (match && currentSubtopic) {
+      const match = log.match(/正在检索:\s*'([^']+)'/) || log.match(/正在检索:\s*["']?([^"'\s]+)["']?/);
+      if (match) {
         const query = match[1].trim();
-        const exists = currentSubtopic.children.some(c => c.label === query);
-        if (!exists) {
-          currentSubtopic.children.push({
-            id: `q-${currentSubtopic.id}-${currentSubtopic.children.length}`,
-            label: query,
-            type: 'query',
-            status: 'searching',
-            children: []
-          });
+        // Find existing query in all subtopics first
+        let foundQueryNode: TreeNode | null = null;
+        subtopicMap.forEach(subNode => {
+          const node = subNode.children.find(c => c.label === query);
+          if (node) foundQueryNode = node;
+        });
+
+        if (foundQueryNode) {
+          (foundQueryNode as TreeNode).status = 'searching';
+        } else if (currentSubtopic) {
+          // Fallback: add it dynamically if not pre-planned
+          const exists = currentSubtopic.children.some(c => c.label === query);
+          if (!exists) {
+            currentSubtopic.children.push({
+              id: `q-${currentSubtopic.id}-${currentSubtopic.children.length}`,
+              label: query,
+              type: 'query',
+              status: 'searching',
+              children: []
+            });
+          }
         }
       }
     }
 
     // 3. Mark completed queries
-    if (log.includes('提取完成') || log.includes('抓取并提取')) {
-      if (currentSubtopic) {
+    // Option A: Specific query completion via [Query: query_text] log metadata
+    const completedQueryMatch = log.match(/\[Query:\s*([^\]]+)\]/);
+    if (completedQueryMatch) {
+      const query = completedQueryMatch[1].trim();
+      subtopicMap.forEach(subNode => {
+        const node = subNode.children.find(c => c.label === query);
+        if (node) node.status = 'completed';
+      });
+    }
+
+    // Option B: Legacy batch completion fallback
+    if (log.includes('提取完成') || log.includes('抓取并提取') || log.includes('提取到') || log.includes('去重融合后') || log.includes('下载失败')) {
+      // If we don't have a specific query match, fallback to completing all searching queries in current subtopic
+      if (!completedQueryMatch && currentSubtopic) {
         currentSubtopic.children.forEach(c => {
           if (c.status === 'searching') c.status = 'completed';
         });
@@ -164,6 +210,13 @@ interface Link {
   status: 'pending' | 'searching' | 'completed';
 }
 
+const svgHeight = computed(() => {
+  const root = treeData.value;
+  if (!root) return 360;
+  const numSubs = root.children.length;
+  return Math.max(360, numSubs * 90 + 50);
+});
+
 const computedLayout = computed(() => {
   const nodes: LayedNode[] = [];
   const links: Link[] = [];
@@ -171,7 +224,7 @@ const computedLayout = computed(() => {
   const root = treeData.value;
   if (!root) return { nodes, links };
 
-  const height = 360;
+  const height = svgHeight.value;
   
   // 1. Root Node
   const layedRoot: LayedNode = {
@@ -272,14 +325,14 @@ const links = computed(() => computedLayout.value.links);
 
 .tree-body {
   flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 100%;
+  overflow: auto;
+  position: relative;
   min-height: 250px;
 }
 
 .tree-svg {
-  overflow: visible;
+  display: block;
 }
 
 .empty-tree {

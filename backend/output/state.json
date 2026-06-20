@@ -1,0 +1,36 @@
+{
+  "topic": "提升agent能力的技术",
+  "max_depth": 2,
+  "max_breadth": 2,
+  "current_depth": 0,
+  "sources": [],
+  "extracted_facts": [],
+  "search_history": [],
+  "tool_calls": [
+    {
+      "tool_name": "planner_generate_initial_plan",
+      "arguments": {
+        "args": [
+          "提升agent能力的技术",
+          "2"
+        ],
+        "kwargs": {}
+      },
+      "output": "{'sub_topics': []}",
+      "timestamp": 1781945295.736779,
+      "duration": 2.860342025756836
+    }
+  ],
+  "llm_logs": [],
+  "logs": [
+    "开始研究课题: '提升agent能力的技术' (最大深度: 2, 最大广度: 2)",
+    "正在规划研究大纲...",
+    "规划失败，未生成子方向。"
+  ],
+  "total_prompt_tokens": 0,
+  "total_completion_tokens": 0,
+  "total_search_calls": 0,
+  "current_estimated_cost": 0.0,
+  "max_cost_budget": 1.0,
+  "circuit_breaker_triggered": false
+}

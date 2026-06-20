@@ -106,7 +106,7 @@ const handleStart = async (config: { topic: string; max_depth: number; max_bread
           reportContent.value = report;
           activeReportId.value = taskId;
           // Refresh report details (sources etc) from DB after completion to ensure sync
-          handleLoadHistory(taskId);
+          handleLoadHistory(taskId, true);
         },
         // On Error
         (err) => {
@@ -140,7 +140,7 @@ const handleStop = async () => {
   }
 };
 
-const handleLoadHistory = async (reportId: string) => {
+const handleLoadHistory = async (reportId: string, isCompletionSync = false) => {
   try {
     const res = await fetch(`/api/reports/${reportId}`);
     if (res.ok) {
@@ -150,8 +150,15 @@ const handleLoadHistory = async (reportId: string) => {
       sources.value = data.state_json?.sources || [];
       activeReportId.value = reportId;
       
-      // Reset logs so console doesn't show confusing logs from other tasks
-      stateLogs.value = [`[历史记录] 成功加载课题 "${data.topic}" 的研究报告`];
+      // If it is just a sync upon completion, we keep the live logs (stateLogs) intact.
+      // Otherwise (loading a historical report), we load the logs from DB to reconstruct the query tree & console.
+      if (!isCompletionSync) {
+        if (data.state_json?.logs && data.state_json.logs.length > 0) {
+          stateLogs.value = data.state_json.logs;
+        } else {
+          stateLogs.value = [`[历史记录] 成功加载课题 "${data.topic}" 的研究报告`];
+        }
+      }
     }
   } catch (e) {
     console.error('Failed to load historical report details', e);
@@ -206,6 +213,7 @@ const handleHistoryDeleted = (id: string) => {
 .report-layout {
   height: 100%;
   min-width: 0;
+  overflow: hidden;
 }
 
 /* Responsiveness overrides */

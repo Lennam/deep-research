@@ -56,7 +56,23 @@ class LLMClient:
                 
             return content, prompt_tokens, completion_tokens
 
-        content, p_tokens, c_tokens = await asyncio.to_thread(_call)
+        try:
+            content, p_tokens, c_tokens = await asyncio.to_thread(_call)
+        except Exception as e:
+            from openai import APIConnectionError
+            if isinstance(e, APIConnectionError):
+                print(
+                    "\n" + "!"*60 + "\n"
+                    "LLM Connection Error detected!\n"
+                    "If you are using Modelscope/Dashscope and have a proxy client running,\n"
+                    "the request might be geoblocked (Modelscope blocks non-Chinese proxy IPs).\n"
+                    "Please:\n"
+                    " 1. Switch your proxy client to 'Rule (规则)' mode.\n"
+                    " 2. Add 'modelscope.cn' and 'aliyuncs.com' to your DIRECT rules.\n"
+                    " 3. Alternatively, configure standard OpenAI settings in backend/.env.\n"
+                    + "!"*60 + "\n"
+                )
+            raise e
 
         # Log results if state is provided
         if state is not None:

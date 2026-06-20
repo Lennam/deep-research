@@ -201,11 +201,11 @@ class AsyncResearchLoop:
             self.state.circuit_breaker_triggered = True
             return
 
-        self.log_step(f"正在阅读和清洗网页: {url}")
+        self.log_step(f"正在阅读和清洗网页 [Query: {query}]: {url}")
         raw_text = await self.scraper.scrape(url)
         
         if not raw_text.strip():
-            self.log_step(f"网页内容为空或下载失败: {url}")
+            self.log_step(f"网页内容为空或下载失败 [Query: {query}]: {url}")
             return
             
         # Re-check budget limits before extractor
@@ -213,10 +213,10 @@ class AsyncResearchLoop:
             self.state.circuit_breaker_triggered = True
             return
 
-        self.log_step(f"正在从网页中提取事实: {url}")
+        self.log_step(f"正在从网页中提取事实 [Query: {query}]: {url}")
         facts = await self.extractor.extract(sub_topic, query, raw_text)
         
-        self.log_step(f"从 {url} 提取到 {len(facts)} 条事实要点")
+        self.log_step(f"从 {url} 提取到 {len(facts)} 条事实要点 [Query: {query}]")
         
         # Fact de-duplication using Word-level Jaccard similarity
         def jaccard_similarity(s1: str, s2: str) -> float:
@@ -253,4 +253,4 @@ class AsyncResearchLoop:
                 ))
                 new_added += 1
                 
-        self.log_step(f"去重融合后，共新增 {new_added} 条事实，过滤/合并了 {len(facts) - new_added} 条重复事实。")
+        self.log_step(f"去重融合后 [Query: {query}]，共新增 {new_added} 条事实，过滤/合并了 {len(facts) - new_added} 条重复事实。")
