@@ -83,6 +83,16 @@ class TaskManager:
             return True
         return False
 
+    async def cancel_task_if_orphaned(self, task_id: str) -> bool:
+        """Cancels the task if there are no active SSE listener queues remaining."""
+        if task_id not in self.active_tasks:
+            return False
+        task, state, queues = self.active_tasks[task_id]
+        if len(queues) == 0:
+            print(f"[TaskManager] Task {task_id} is orphaned (0 queues). Cancelling background task.")
+            return await self.cancel_task(task_id)
+        return False
+
     def remove_task(self, task_id: str):
         """Removes the task from the manager after completion or error."""
         self.active_tasks.pop(task_id, None)

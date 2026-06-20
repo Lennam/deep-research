@@ -14,10 +14,10 @@ async def test_scraper_jina_success():
         mock_res.text = mock_markdown
         mock_get.return_value = mock_res
         
-        content = await scraper.scrape("https://example.com/testpage")
+        content = await scraper.scrape("https://example.com/jina_testpage")
         assert content == mock_markdown
         # Assert Jina url was queried
-        mock_get.assert_called_with("https://r.jina.ai/https://example.com/testpage", headers=scraper.headers)
+        mock_get.assert_called_with("https://r.jina.ai/https://example.com/jina_testpage", headers=scraper.headers)
 
 
 @pytest.mark.asyncio
@@ -50,7 +50,7 @@ async def test_scraper_fallback_to_bs4():
         
         mock_get.side_effect = [mock_jina_res, mock_page_res]
         
-        content = await scraper.scrape("https://example.com/testpage")
+        content = await scraper.scrape("https://example.com/bs4_testpage")
         
         # Verify nav/footer are cleaned out and only main text remains
         assert "Main Heading" in content

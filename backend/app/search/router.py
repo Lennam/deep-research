@@ -24,16 +24,21 @@ class SearchRouter:
     async def search(self, query: str, max_results: int = 5, mode: str = "auto") -> List[Dict[str, Any]]:
         """
         Routes the query to the correct search engine(s) based on the query and search mode.
-        Modes:
-            - 'auto': automatically routes to Web or Academic search based on query keywords.
-            - 'web': explicitly routes to Tavily Web Search.
-            - 'academic': explicitly routes to Academic Search (arXiv + Semantic Scholar).
-            - 'all': queries both and merges results.
+        Prioritizes checking the local SQLite cache first.
         """
+        from app.utils.cache import get_search_cache, set_search_cache
+        
+        cached_res = await get_search_cache(query, mode)
+        if cached_res is not None:
+            print(f"[SearchRouter] Cache HIT for query: '{query}' (mode: {mode})")
+            return cached_res[:max_results]
+
+        print(f"[SearchRouter] Cache MISS for query: '{query}' (mode: {mode})")
+
         if mode == "academic":
-            return await self.academic_client.search(query, max_results)
+            results = await self.academic_client.search(query, max_results)
         elif mode == "web":
-            return await self.web_client.search(query, max_results)
+            results = await self.web_client.search(query, max_results)
         elif mode == "all":
             web_task = self.web_client.search(query, max_results=max_results)
             acad_task = self.academic_client.search(query, max_results=max_results)
@@ -46,12 +51,16 @@ class SearchRouter:
                 if url not in seen_urls:
                     seen_urls.add(url)
                     merged.append(r)
-            return merged[:max_results]
+            results = merged[:max_results]
         else: # auto
             if self.should_use_academic(query):
-                return await self.academic_client.search(query, max_results)
+                results = await self.academic_client.search(query, max_results)
             else:
-                return await self.web_client.search(query, max_results)
+                results = await self.web_client.search(query, max_results)
+                
+        # Cache the results
+        await set_search_cache(query, mode, results)
+        return results
                 
 # Singleton instance with default configuration
 search_router = SearchRouter()

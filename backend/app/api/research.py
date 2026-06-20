@@ -18,6 +18,7 @@ class ResearchRequest(BaseModel):
     max_depth: Optional[int] = None
     max_breadth: Optional[int] = None
     search_mode: str = "auto" # "auto", "web", "academic", "all"
+    max_cost_budget: Optional[float] = None
 
 class ResearchStartResponse(BaseModel):
     task_id: str
@@ -89,12 +90,14 @@ async def start_research(request: ResearchRequest):
         
     depth = request.max_depth if request.max_depth is not None else settings.DEFAULT_MAX_DEPTH
     breadth = request.max_breadth if request.max_breadth is not None else settings.DEFAULT_MAX_BREADTH
+    budget = request.max_cost_budget if request.max_cost_budget is not None else settings.DEFAULT_MAX_COST_BUDGET
     
     # Initialize Research State
     state = ResearchState(
         topic=topic,
         max_depth=depth,
-        max_breadth=breadth
+        max_breadth=breadth,
+        max_cost_budget=budget
     )
     
     # Generate a task ID
@@ -121,8 +124,10 @@ async def start_research(request: ResearchRequest):
         message="研究任务已成功在后台启动"
     )
 
+from fastapi import Request
+
 @router.get("/stream/{task_id}")
-async def stream_research_events(task_id: str):
+async def stream_research_events(task_id: str, request: Request):
     async def event_generator():
         import time
         try:
@@ -151,6 +156,9 @@ async def stream_research_events(task_id: str):
         try:
             # Stream logs and state updates to SSE client
             while True:
+                if await request.is_disconnected():
+                    print(f"[SSE Connection] Client disconnected for task {task_id}")
+                    break
                 try:
                     event = await asyncio.wait_for(queue.get(), timeout=15.0)
                     yield f"event: {event['event']}\ndata: {json.dumps(event['data'], ensure_ascii=False)}\n\n"
@@ -162,6 +170,8 @@ async def stream_research_events(task_id: str):
                     yield ": heartbeat\n\n"
         finally:
             task_manager.unregister_queue(task_id, queue)
+            # Phase 4: Auto-cancel background task if orphaned
+            await task_manager.cancel_task_if_orphaned(task_id)
             
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 

@@ -70,6 +70,15 @@ class LLMClient:
                 prompt_tokens=p_tokens,
                 completion_tokens=c_tokens
             ))
+            
+            # Phase 4: cost metrics update
+            state.total_prompt_tokens += p_tokens
+            state.total_completion_tokens += c_tokens
+            
+            # Cost calculation
+            call_input_cost = p_tokens * settings.LLM_INPUT_COST_PER_TOKEN
+            call_output_cost = c_tokens * settings.LLM_OUTPUT_COST_PER_TOKEN
+            state.current_estimated_cost += (call_input_cost + call_output_cost)
 
         return content
 

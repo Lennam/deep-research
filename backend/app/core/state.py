@@ -43,3 +43,11 @@ class ResearchState(BaseModel):
     tool_calls: List[ToolCallRecord] = Field(default_factory=list)
     llm_logs: List[LLMIOLog] = Field(default_factory=list)
     logs: List[str] = Field(default_factory=list)                     # Execution step logs
+
+    # Phase 4 Cost & Budget tracking
+    total_prompt_tokens: int = 0
+    total_completion_tokens: int = 0
+    total_search_calls: int = 0
+    current_estimated_cost: float = 0.0
+    max_cost_budget: float = 1.0
+    circuit_breaker_triggered: bool = False

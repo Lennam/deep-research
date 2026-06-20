@@ -17,6 +17,9 @@ async def init_db():
             )
         """)
         await db.commit()
+        
+    from app.utils.cache import init_cache_db
+    await init_cache_db()
 
 async def save_report(
     report_id: str, 
