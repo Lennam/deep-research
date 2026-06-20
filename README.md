@@ -4,7 +4,6 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100.0%2B-green.svg)](https://fastapi.tiangolo.com/)
 [![Vue 3](https://img.shields.io/badge/Vue-3.5.0%2B-emerald.svg)](https://vuejs.org/)
 [![Vite](https://img.shields.io/badge/Vite-8.0.0%2B-purple.svg)](https://vite.dev/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **Deep Research Agent** 是一个集成多智能体协同（Multi-Agent Collaboration）、异步递归探索、实时流式状态推送（SSE）以及高保真磨砂玻璃拟态（Glassmorphic）前端的自动化深度研究系统。系统能够针对用户给定的研究课题进行深度规划、多源信息检索、内容清洗提炼、交叉事实核查，并最终生成具有详尽引用文献的高质量 Markdown 格式研究报告。
 
@@ -64,7 +63,7 @@
 
 ```mermaid
 graph TD
-    subgraph Frontend [前端展示层 (Vue 3)]
+    subgraph Frontend ["前端展示层 (Vue 3)"]
         VC[ConfigPanel - 配置面板]
         QT[QueryTree - SVG 脑图]
         LC[LogConsole - 终端日志]

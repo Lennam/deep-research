@@ -37,7 +37,7 @@
 
 ```mermaid
 graph TD
-    subgraph Frontend [前端展示层 (Vue 3 + Vite)]
+    subgraph Frontend ["前端展示层 (Vue 3 + Vite)"]
         VC[ConfigPanel - 配置面板]
         QT[QueryTree - SVG 脑图]
         LC[LogConsole - 终端日志]
