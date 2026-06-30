@@ -29,6 +29,7 @@ class FactNode(BaseModel):
 
 class ResearchState(BaseModel):
     """Global state of the deep research process."""
+    task_id: str = ""
     topic: str
     max_depth: int
     max_breadth: int

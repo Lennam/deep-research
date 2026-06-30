@@ -98,6 +98,37 @@ class LLMClient:
 
         return content
 
+    async def get_embedding(self, text: str) -> list[float]:
+        """
+        Calls the LLM embeddings endpoint asynchronously for a single text.
+        """
+        embeddings = await self.get_embeddings([text])
+        return embeddings[0] if embeddings else []
+
+    async def get_embeddings(self, texts: list[str]) -> list[list[float]]:
+        """
+        Calls the LLM embeddings endpoint for multiple texts asynchronously.
+        """
+        if not self.client:
+            raise ValueError("OpenAI/Zhipu API Key is not configured. Please set OPENAI_API_KEY in .env.")
+        if not texts:
+            return []
+        
+        processed_texts = [t.replace("\n", " ") for t in texts]
+        
+        def _call():
+            response = self.client.embeddings.create(
+                model=settings.OPENAI_EMBEDDING_MODEL,
+                input=processed_texts
+            )
+            return [data.embedding for data in response.data]
+
+        try:
+            return await asyncio.to_thread(_call)
+        except Exception as e:
+            print(f"Error in LLMClient.get_embeddings: {e}")
+            raise e
+
 # Backwards compatibility aliases
 GLMClient = LLMClient
 glm_client = LLMClient()

@@ -8,6 +8,7 @@ from app.agents.scraper import ScraperAgent
 from app.agents.extractor import ExtractorAgent
 from app.agents.synthesizer import SynthesizerAgent
 from app.search.router import SearchRouter
+from app.utils.vector_store import vector_store, chunk_markdown, cosine_similarity
 
 class AsyncResearchLoop:
     def __init__(
@@ -34,6 +35,7 @@ class AsyncResearchLoop:
         
         # To avoid parallel scrapes of same URL
         self.scraped_urls = set()
+        self.fact_embeddings = {}
 
     def log_step(self, message: str):
         """Logs a status message to the state logs list."""
@@ -161,8 +163,47 @@ class AsyncResearchLoop:
                     self.scraped_urls.add(url)
                     scrape_tasks.append(self.scrape_and_extract_facts(title, query, r))
                     
+            any_success = False
             if scrape_tasks:
-                await asyncio.gather(*scrape_tasks)
+                results = await asyncio.gather(*scrape_tasks)
+                any_success = any(results)
+                
+            # Corrective RAG: query rewriting fallback if no facts/relevant info returned
+            if scrape_tasks and not any_success:
+                self.log_step(f"⚠️ [检索评估] 查询 '{query}' 未召回任何相关事实，正在尝试重写查询...")
+                rewritten_query = await self.planner.rewrite_query(query, title)
+                if rewritten_query and rewritten_query not in self.state.search_history:
+                    self.log_step(f"🔄 [检索评估] 重写后的查询为: '{rewritten_query}'，正在重新检索...")
+                    self.state.search_history.append(rewritten_query)
+                    
+                    self.state.total_search_calls += 1
+                    is_academic = (self.search_mode == "academic") or (self.search_mode == "auto" and self.search_router.should_use_academic(rewritten_query))
+                    if not is_academic:
+                        self.state.current_estimated_cost += settings.SEARCH_COST_PER_CALL
+                        
+                    rewritten_results = await self.search_router.search(
+                        rewritten_query, 
+                        max_results=self.state.max_breadth, 
+                        mode=self.search_mode
+                    )
+                    
+                    for r in rewritten_results:
+                        url = r["url"]
+                        if not any(s["url"] == url for s in self.state.sources):
+                            self.state.sources.append({
+                                "title": r.get("title", "Unknown"),
+                                "url": url,
+                                "content": r.get("content", "")
+                            })
+                            
+                    retry_tasks = []
+                    for r in rewritten_results:
+                        url = r["url"]
+                        if url not in self.scraped_urls:
+                            self.scraped_urls.add(url)
+                            retry_tasks.append(self.scrape_and_extract_facts(title, rewritten_query, r))
+                    if retry_tasks:
+                        await asyncio.gather(*retry_tasks)
 
         # Deeper recursion (depth-first progression within width limit)
         if depth < self.state.max_depth:
@@ -191,41 +232,78 @@ class AsyncResearchLoop:
                 else:
                     self.log_step(f"方向 [{title}] 信息已足够，无需深化。")
 
-    async def scrape_and_extract_facts(self, sub_topic: str, query: str, search_result: Dict[str, Any]):
-        """Helper to scrape page and run facts extractor."""
+    async def scrape_and_extract_facts(self, sub_topic: str, query: str, search_result: Dict[str, Any]) -> bool:
+        """Helper to scrape page, chunk, vectorize, query top chunks, and run facts extractor."""
         url = search_result["url"]
         title = search_result.get("title", "Unknown")
         
         # Skip if hard limits hit
         if self.state.circuit_breaker_triggered or self.state.current_estimated_cost >= self.state.max_cost_budget:
             self.state.circuit_breaker_triggered = True
-            return
+            return False
 
         self.log_step(f"正在阅读和清洗网页 [Query: {query}]: {url}")
         raw_text = await self.scraper.scrape(url)
         
         if not raw_text.strip():
             self.log_step(f"网页内容为空或下载失败 [Query: {query}]: {url}")
-            return
+            return False
             
         # Re-check budget limits before extractor
         if self.state.circuit_breaker_triggered or self.state.current_estimated_cost >= self.state.max_cost_budget:
             self.state.circuit_breaker_triggered = True
-            return
+            return False
 
-        self.log_step(f"正在从网页中提取事实 [Query: {query}]: {url}")
-        facts = await self.extractor.extract(sub_topic, query, raw_text)
-        
-        self.log_step(f"从 {url} 提取到 {len(facts)} 条事实要点 [Query: {query}]")
-        
-        # Fact de-duplication using Word-level Jaccard similarity
-        def jaccard_similarity(s1: str, s2: str) -> float:
-            w1 = set(s1.lower().split())
-            w2 = set(s2.lower().split())
-            if not w1 or not w2:
-                return 0.0
-            return len(w1 & w2) / len(w1 | w2)
+        # Smart Chunking
+        chunks = chunk_markdown(raw_text, chunk_size=settings.RAG_CHUNK_SIZE, overlap=settings.RAG_CHUNK_OVERLAP)
+        if not chunks:
+            return False
 
+        self.log_step(f"网页已分块为 {len(chunks)} 个片段，正在计算向量...")
+        try:
+            embeddings = await self.extractor.client.get_embeddings(chunks)
+            metadatas = [{"url": url, "title": title, "type": "chunk", "sub_topic": sub_topic} for _ in chunks]
+            await vector_store.add_documents(
+                task_id=self.state.task_id,
+                texts=chunks,
+                metadatas=metadatas,
+                embeddings=embeddings
+            )
+            query_emb = await self.extractor.client.get_embedding(query)
+        except Exception as e:
+            self.log_step(f"向量计算失败: {e}，将降级为对整篇网页直接进行事实提取。")
+            facts = await self.extractor.extract(sub_topic, query, raw_text)
+            return await self.process_extracted_facts(facts, url, title, sub_topic)
+
+        # In-memory similarity filtering for the current webpage
+        scored_chunks = []
+        for chunk, emb in zip(chunks, embeddings):
+            sim = cosine_similarity(query_emb, emb)
+            scored_chunks.append((chunk, sim))
+            
+        scored_chunks.sort(key=lambda x: x[1], reverse=True)
+        
+        # Corrective evaluation check
+        max_sim = scored_chunks[0][1] if scored_chunks else 0.0
+        if max_sim < settings.RAG_RELEVANCE_THRESHOLD:
+            self.log_step(f"⚠️ [检索评估] 网页内容与查询相关度过低 (最大相似度: {max_sim:.4f} < {settings.RAG_RELEVANCE_THRESHOLD})，跳过事实提取。")
+            return False
+
+        relevant_chunks = [item[0] for item in scored_chunks[:settings.RAG_TOP_K] if item[1] >= settings.RAG_RELEVANCE_THRESHOLD]
+        self.log_step(f"[检索评估] 召回 {len(relevant_chunks)} 个相关片段 (最高相似度: {max_sim:.4f})，开始事实提取...")
+        
+        rag_content = "\n\n---\n\n".join(relevant_chunks)
+        facts = await self.extractor.extract(sub_topic, query, rag_content)
+        
+        return await self.process_extracted_facts(facts, url, title, sub_topic)
+
+    async def process_extracted_facts(self, facts: list, url: str, title: str, sub_topic: str) -> bool:
+        """Processes extracted facts, performs semantic deduplication, and adds to state."""
+        if not facts:
+            return False
+
+        self.log_step(f"从 {url} 提取到 {len(facts)} 条事实要点，正在进行去重与交叉引用...")
+        
         new_added = 0
         for f in facts:
             fact_text = f.get("fact", "").strip()
@@ -233,15 +311,40 @@ class AsyncResearchLoop:
             if not fact_text:
                 continue
 
-            # Compare Jaccard similarity with existing facts
+            try:
+                fact_emb = await self.extractor.client.get_embedding(fact_text)
+            except Exception as e:
+                print(f"Failed to embed fact: {e}. Falling back to Jaccard similarity.")
+                fact_emb = None
+
             duplicate = False
             for existing in self.state.extracted_facts:
-                if jaccard_similarity(fact_text, existing.fact) > 0.6:
-                    duplicate = True
-                    # Append new source references if not already there
-                    if url not in existing.evidence and url != existing.source_url:
-                        existing.evidence += f" [Cross-reference: {url}]"
-                    break
+                if fact_emb:
+                    existing_emb = self.fact_embeddings.get(existing.fact)
+                    if not existing_emb:
+                        try:
+                            existing_emb = await self.extractor.client.get_embedding(existing.fact)
+                            self.fact_embeddings[existing.fact] = existing_emb
+                        except Exception:
+                            existing_emb = None
+                    
+                    if existing_emb:
+                        sim = cosine_similarity(fact_emb, existing_emb)
+                        if sim > settings.RAG_SIMILARITY_THRESHOLD:
+                            duplicate = True
+                            if url not in existing.evidence and url != existing.source_url:
+                                existing.evidence += f" [交叉引用: {url}]"
+                            break
+                else:
+                    # Jaccard fallback
+                    w1 = set(fact_text.lower().split())
+                    w2 = set(existing.fact.lower().split())
+                    j_sim = len(w1 & w2) / len(w1 | w2) if w1 or w2 else 0.0
+                    if j_sim > 0.6:
+                        duplicate = True
+                        if url not in existing.evidence and url != existing.source_url:
+                            existing.evidence += f" [Cross-reference: {url}]"
+                        break
             
             if not duplicate:
                 self.state.extracted_facts.append(FactNode(
@@ -252,5 +355,14 @@ class AsyncResearchLoop:
                     sub_topic=sub_topic
                 ))
                 new_added += 1
+                if fact_emb:
+                    self.fact_embeddings[fact_text] = fact_emb
+                    await vector_store.add_documents(
+                        task_id=self.state.task_id,
+                        texts=[fact_text],
+                        metadatas=[{"url": url, "title": title, "type": "fact", "sub_topic": sub_topic}],
+                        embeddings=[fact_emb]
+                    )
                 
-        self.log_step(f"去重融合后 [Query: {query}]，共新增 {new_added} 条事实，过滤/合并了 {len(facts) - new_added} 条重复事实。")
+        self.log_step(f"去重融合后，共新增 {new_added} 条事实，过滤/合并了 {len(facts) - new_added} 条重复事实。")
+        return new_added > 0

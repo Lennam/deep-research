@@ -9,11 +9,19 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
     OPENAI_MODEL: str = "gpt-4o-mini"
+    OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
     
     TAVILY_API_KEY: str = ""
     
     DEFAULT_MAX_DEPTH: int = 3
     DEFAULT_MAX_BREADTH: int = 3
+    
+    # RAG Settings
+    RAG_CHUNK_SIZE: int = 1000
+    RAG_CHUNK_OVERLAP: int = 200
+    RAG_TOP_K: int = 5
+    RAG_RELEVANCE_THRESHOLD: float = 0.35
+    RAG_SIMILARITY_THRESHOLD: float = 0.82
     
     SQLITE_DB_PATH: str = str(BASE_DIR / "app.db")
 

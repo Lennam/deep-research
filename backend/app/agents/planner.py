@@ -69,3 +69,32 @@ class PlannerAgent:
         except Exception as e:
             print(f"Error in PlannerAgent refine_and_expand: {e}")
             return []
+
+    @track_tool_call("planner_rewrite_query")
+    async def rewrite_query(self, query: str, sub_topic: str) -> str:
+        """
+        Rewrites a search query to be more effective when the previous search returned irrelevant results.
+        """
+        system_prompt = prompt_manager.get_prompt("planner", "rewrite_system")
+        user_prompt = prompt_manager.get_prompt(
+            "planner", "rewrite_user",
+            query=query,
+            sub_topic=sub_topic
+        )
+
+        try:
+            response_text = await self.client.chat_completion(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                response_format="json",
+                state=self.state,
+                agent_name="planner",
+                prompt_name="rewrite_query"
+            )
+            data = parse_json_robustly(response_text)
+            if isinstance(data, dict):
+                return data.get("rewritten_query", "").strip()
+            return ""
+        except Exception as e:
+            print(f"Error in PlannerAgent rewrite_query: {e}")
+            return ""

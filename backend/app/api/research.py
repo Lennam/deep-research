@@ -102,6 +102,7 @@ async def start_research(request: ResearchRequest):
     
     # Generate a task ID
     task_id = task_manager.create_task(state)
+    state.task_id = task_id
     
     # Set up event callback for loop log publishing
     def on_event_callback(event_type: str, data: dict):

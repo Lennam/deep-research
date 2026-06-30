@@ -20,6 +20,9 @@ async def init_db():
         
     from app.utils.cache import init_cache_db
     await init_cache_db()
+    
+    from app.utils.vector_store import vector_store
+    await vector_store.init_db()
 
 async def save_report(
     report_id: str, 
